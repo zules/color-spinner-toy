@@ -1,27 +1,42 @@
 import { type AudioPlayer, createAudioPlayer } from "expo-audio";
 
-// Preloaded one-shot SFX. Tick is the only sound in M3; the randomize sparkle
-// and unlock fanfare join here in M4/M5 (spec §6: preload all at app start, keep
-// tiny, respect the mute toggle). Muting is decided by the caller, not here.
+// Preloaded one-shot SFX (spec §6: preload all at app start, keep tiny, respect
+// the mute toggle — muting is decided by the caller). The unlock fanfare joins
+// these in M5.
 let tickPlayer: AudioPlayer | null = null;
+let sparklePlayer: AudioPlayer | null = null;
 
-/** Create the players once, up front, so the first tick has no load delay. */
+/** Create the players once, up front, so the first play has no load delay. */
 export function preloadSounds(): void {
-  if (tickPlayer) return;
-  tickPlayer = createAudioPlayer(require("../../assets/sounds/tick.wav"));
-  tickPlayer.volume = 0.9;
+  if (!tickPlayer) {
+    tickPlayer = createAudioPlayer(require("../../assets/sounds/tick.wav"));
+    tickPlayer.volume = 0.9;
+  }
+  if (!sparklePlayer) {
+    sparklePlayer = createAudioPlayer(require("../../assets/sounds/sparkle.wav"));
+    sparklePlayer.volume = 0.6; // gentle — it plays often
+  }
 }
 
-/** Play the prong-tick click from the top. */
+function replay(player: AudioPlayer | null): void {
+  if (!player) return;
+  // Seek to 0 then play so a finished clip replays from the top.
+  player
+    .seekTo(0)
+    .then(() => player.play())
+    .catch(() => {
+      // A dropped SFX must never interrupt the toy.
+    });
+}
+
+/** Play the prong-tick click. */
 export function playTick(): void {
   if (!tickPlayer) preloadSounds();
-  const p = tickPlayer;
-  if (!p) return;
-  // Restart from 0 each time; ticks are throttled well apart so the single
-  // player never overlaps itself. Seek then play so a finished clip replays.
-  p.seekTo(0)
-    .then(() => p.play())
-    .catch(() => {
-      // A dropped tick must never interrupt the spin.
-    });
+  replay(tickPlayer);
+}
+
+/** Play the Randomize sparkle. */
+export function playSparkle(): void {
+  if (!sparklePlayer) preloadSounds();
+  replay(sparklePlayer);
 }

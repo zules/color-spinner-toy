@@ -1,75 +1,123 @@
 import * as Haptics from "expo-haptics";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { playTick, preloadSounds } from "@/audio/sounds";
+import { playSparkle, playTick, preloadSounds } from "@/audio/sounds";
+import { MutationChip } from "@/components/mutation-chip";
+import { RandomizeSlot } from "@/components/randomize-slot";
 import { SpinnerWheel } from "@/components/spinner-wheel";
-import { PALETTE } from "@/constants/palette";
-import { useMute } from "@/hooks/use-mute";
+import { hexById } from "@/constants/palette";
+import { useSaveState } from "@/hooks/use-save-state";
 import { useSpinner } from "@/hooks/use-spinner";
-
-// M1 renders the day-one starter trio straight from the palette. Once the save
-// file lands (M4+), slice colors come from persisted WheelState instead.
-const STARTER_SLICE_COLORS: readonly [string, string, string] = [
-  PALETTE[0].hex,
-  PALETTE[1].hex,
-  PALETTE[2].hex,
-];
+import { describeChange } from "@/state/mutations";
 
 export default function MainScreen() {
-  const { muted, mutedRef, toggle } = useMute();
+  const { save, toggleMute, applyRandomize } = useSaveState();
+
+  // Mute governs audio only; keep a live ref so the stable tick handler reads it.
+  const mutedRef = useRef(false);
+  mutedRef.current = save?.muted ?? false;
 
   useEffect(() => {
     preloadSounds();
   }, []);
 
-  // Each prong-crossing: click (unless muted) + a light haptic, but the haptic
-  // only when the spin is finger-driven, never from SPIN (spec §6). Stable via
-  // mutedRef so it isn't recreated as mute flips.
-  const onTick = useCallback(
-    (isTouch: boolean) => {
-      if (!mutedRef.current) playTick();
-      if (isTouch) Haptics.selectionAsync();
-    },
-    [mutedRef],
-  );
+  const onTick = useCallback((isTouch: boolean) => {
+    if (!mutedRef.current) playTick();
+    if (isTouch) Haptics.selectionAsync();
+  }, []);
 
   const { rotation, gesture, spin, onWheelLayout, wheelSize } =
     useSpinner(onTick);
 
+  // A quick shake on each mutation (spec §5.4). RN view transform, outside the
+  // Skia canvas, so it composes with the wheel's own rotation.
+  const shakeX = useSharedValue(0);
+  const wheelShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+
+  const [chip, setChip] = useState<{
+    message: string;
+    signal: number;
+  } | null>(null);
+
+  const onRandomize = useCallback(() => {
+    const change = applyRandomize();
+    if (!change) return;
+    shakeX.value = withSequence(
+      withTiming(-8, { duration: 45 }),
+      withTiming(8, { duration: 60 }),
+      withTiming(-5, { duration: 50 }),
+      withTiming(0, { duration: 45 }),
+    );
+    if (!mutedRef.current) playSparkle();
+    setChip((c) => ({ message: describeChange(change), signal: (c?.signal ?? 0) + 1 }));
+  }, [applyRandomize, shakeX]);
+
+  const wheel = save?.wheel;
+  const backgroundColor = wheel?.backgroundColorId
+    ? hexById(wheel.backgroundColorId)
+    : "#ffffff";
+  const sliceColors: readonly [string, string, string] | null = wheel
+    ? [
+        hexById(wheel.slices[0].colorId),
+        hexById(wheel.slices[1].colorId),
+        hexById(wheel.slices[2].colorId),
+      ]
+    : null;
+  const prongColor = wheel?.prongColorId ? hexById(wheel.prongColorId) : null;
+  const glowColor = wheel?.glowColorId ? hexById(wheel.glowColorId) : null;
+
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Header — COLORS is still a placeholder (M5); mute is live. */}
+    <SafeAreaView style={[styles.safe, { backgroundColor }]}>
       <View style={styles.header}>
         <View style={styles.pill}>
           <Text style={styles.pillText}>🎨  COLORS</Text>
         </View>
         <Pressable
-          onPress={toggle}
+          onPress={toggleMute}
           accessibilityRole="button"
-          accessibilityLabel={muted ? "Unmute" : "Mute"}
+          accessibilityLabel={save?.muted ? "Unmute" : "Mute"}
           style={({ pressed }) => [
             styles.iconButton,
             pressed && styles.iconButtonPressed,
           ]}
         >
-          <Text style={styles.iconText}>{muted ? "🔇" : "🔊"}</Text>
+          <Text style={styles.iconText}>{save?.muted ? "🔇" : "🔊"}</Text>
         </Pressable>
       </View>
 
+      {save && (
+        <View style={styles.randomizeRow}>
+          <RandomizeSlot readyAt={save.randomizeReadyAt} onPress={onRandomize} />
+        </View>
+      )}
+
       <View style={styles.wheelArea} onLayout={onWheelLayout}>
-        {wheelSize > 0 && (
-          <GestureDetector gesture={gesture}>
-            <View style={{ width: wheelSize, height: wheelSize }}>
-              <SpinnerWheel
-                size={wheelSize}
-                sliceColors={STARTER_SLICE_COLORS}
-                rotation={rotation}
-              />
-            </View>
-          </GestureDetector>
+        {wheelSize > 0 && sliceColors && (
+          <Animated.View style={wheelShakeStyle}>
+            <GestureDetector gesture={gesture}>
+              <View style={{ width: wheelSize, height: wheelSize }}>
+                <SpinnerWheel
+                  size={wheelSize}
+                  sliceColors={sliceColors}
+                  prongColor={prongColor}
+                  glowColor={glowColor}
+                  rotation={rotation}
+                />
+              </View>
+            </GestureDetector>
+          </Animated.View>
         )}
+        <MutationChip chip={chip} />
       </View>
 
       {/* SPIN — adds a fresh spin impulse every press (spec §6). */}
@@ -124,6 +172,10 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 18,
+  },
+  randomizeRow: {
+    marginTop: 10,
+    alignItems: "center",
   },
   wheelArea: {
     flex: 1,

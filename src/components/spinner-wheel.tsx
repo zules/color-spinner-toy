@@ -10,6 +10,7 @@ import {
 } from "@shopify/react-native-skia";
 import { useMemo } from "react";
 import { type SharedValue, useDerivedValue } from "react-native-reanimated";
+import { shade, withAlpha } from "@/utils/color";
 
 export interface SpinnerWheelProps {
   /** Square canvas edge length in dp. */
@@ -18,6 +19,10 @@ export interface SpinnerWheelProps {
   sliceColors: readonly [string, string, string];
   /** Unbounded wheel rotation in radians (spec §6). Only the slices rotate. */
   rotation: SharedValue<number>;
+  /** Prong tint hex, or null for the default grey metal (spec §5 mutation #5). */
+  prongColor?: string | null;
+  /** Glow hex, or null for the default soft shadow (spec §5 mutation #6). */
+  glowColor?: string | null;
 }
 
 // Slice boundaries sit at 12 / 4 / 8 o'clock. In Skia's angle convention
@@ -27,7 +32,13 @@ export interface SpinnerWheelProps {
 const SLICE_STARTS = [270, 30, 150] as const;
 const PRONG_COUNT = 3;
 
-export function SpinnerWheel({ size, sliceColors, rotation }: SpinnerWheelProps) {
+export function SpinnerWheel({
+  size,
+  sliceColors,
+  rotation,
+  prongColor = null,
+  glowColor = null,
+}: SpinnerWheelProps) {
   const cx = size / 2;
   const cy = size / 2;
   const R = size * 0.4; // leaves room for prongs (1.05R) and the glow blur
@@ -67,10 +78,18 @@ export function SpinnerWheel({ size, sliceColors, rotation }: SpinnerWheelProps)
   const outlineWidth = Math.max(1.5, size * 0.006);
   const prongEdgeWidth = Math.max(1, size * 0.003);
 
+  // Default prongs are a plain grey metal gradient; a prong mutation tints it
+  // (the adjacent-slice tint refinement is M6). Glow defaults to a soft dark
+  // shadow, or takes the mutated color at reduced alpha.
+  const prongGradient = prongColor
+    ? [shade(prongColor, 0.4), prongColor, shade(prongColor, -0.35)]
+    : ["#efefef", "#a8a8a8", "#6f6f6f"];
+  const glowFill = glowColor ? withAlpha(glowColor, 0.55) : "rgba(38,38,54,0.40)";
+
   return (
     <Canvas style={{ width: size, height: size }}>
       {/* Soft glow / drop shadow behind the wheel (spec §3.1). */}
-      <Circle cx={cx} cy={cy + size * 0.012} r={R} color="rgba(38,38,54,0.40)">
+      <Circle cx={cx} cy={cy + size * 0.012} r={R} color={glowFill}>
         <Blur blur={size * 0.05} />
       </Circle>
 
@@ -103,7 +122,7 @@ export function SpinnerWheel({ size, sliceColors, rotation }: SpinnerWheelProps)
             <LinearGradient
               start={vec(cx, cy - R * 1.05)}
               end={vec(cx, cy - R * 0.78)}
-              colors={["#efefef", "#a8a8a8", "#6f6f6f"]}
+              colors={prongGradient}
             />
           </Path>
           <Path
