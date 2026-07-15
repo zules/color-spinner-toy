@@ -9,12 +9,15 @@ import {
   vec,
 } from "@shopify/react-native-skia";
 import { useMemo } from "react";
+import { type SharedValue, useDerivedValue } from "react-native-reanimated";
 
 export interface SpinnerWheelProps {
   /** Square canvas edge length in dp. */
   size: number;
   /** Hex fill for each of the 3 slices, in slice order. */
   sliceColors: readonly [string, string, string];
+  /** Unbounded wheel rotation in radians (spec §6). Only the slices rotate. */
+  rotation: SharedValue<number>;
 }
 
 // Slice boundaries sit at 12 / 4 / 8 o'clock. In Skia's angle convention
@@ -24,10 +27,14 @@ export interface SpinnerWheelProps {
 const SLICE_STARTS = [270, 30, 150] as const;
 const PRONG_COUNT = 3;
 
-export function SpinnerWheel({ size, sliceColors }: SpinnerWheelProps) {
+export function SpinnerWheel({ size, sliceColors, rotation }: SpinnerWheelProps) {
   const cx = size / 2;
   const cy = size / 2;
   const R = size * 0.4; // leaves room for prongs (1.05R) and the glow blur
+
+  // Only the pie spins; the prongs, glow and rim stay fixed to the frame so a
+  // slice boundary sweeps under a stationary prong on each pass (spec §6).
+  const spinTransform = useDerivedValue(() => [{ rotate: rotation.value }]);
 
   const slicePaths = useMemo(() => {
     const oval = Skia.XYWHRect(cx - R, cy - R, R * 2, R * 2);
@@ -67,10 +74,12 @@ export function SpinnerWheel({ size, sliceColors }: SpinnerWheelProps) {
         <Blur blur={size * 0.05} />
       </Circle>
 
-      {/* Three solid pie slices. */}
-      {slicePaths.map((path, i) => (
-        <Path key={i} path={path} color={sliceColors[i]} />
-      ))}
+      {/* Three solid pie slices — the only part that rotates. */}
+      <Group origin={vec(cx, cy)} transform={spinTransform}>
+        {slicePaths.map((path, i) => (
+          <Path key={i} path={path} color={sliceColors[i]} />
+        ))}
+      </Group>
 
       {/* Crisp rim outline. */}
       <Circle
