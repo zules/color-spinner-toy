@@ -1,8 +1,12 @@
+import * as Haptics from "expo-haptics";
+import { useCallback, useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { playTick, preloadSounds } from "@/audio/sounds";
 import { SpinnerWheel } from "@/components/spinner-wheel";
 import { PALETTE } from "@/constants/palette";
+import { useMute } from "@/hooks/use-mute";
 import { useSpinner } from "@/hooks/use-spinner";
 
 // M1 renders the day-one starter trio straight from the palette. Once the save
@@ -14,19 +18,44 @@ const STARTER_SLICE_COLORS: readonly [string, string, string] = [
 ];
 
 export default function MainScreen() {
-  const { rotation, gesture, spin, onWheelLayout, wheelSize } = useSpinner();
+  const { muted, mutedRef, toggle } = useMute();
+
+  useEffect(() => {
+    preloadSounds();
+  }, []);
+
+  // Each prong-crossing: click (unless muted) + a light haptic, but the haptic
+  // only when the spin is finger-driven, never from SPIN (spec §6). Stable via
+  // mutedRef so it isn't recreated as mute flips.
+  const onTick = useCallback(
+    (isTouch: boolean) => {
+      if (!mutedRef.current) playTick();
+      if (isTouch) Haptics.selectionAsync();
+    },
+    [mutedRef],
+  );
+
+  const { rotation, gesture, spin, onWheelLayout, wheelSize } =
+    useSpinner(onTick);
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Header — static placeholders for M1/M2. COLORS overlay + mute toggle
-          get their behavior in later milestones (M3 mute, M5 colors). */}
+      {/* Header — COLORS is still a placeholder (M5); mute is live. */}
       <View style={styles.header}>
         <View style={styles.pill}>
           <Text style={styles.pillText}>🎨  COLORS</Text>
         </View>
-        <View style={styles.iconButton}>
-          <Text style={styles.iconText}>🔊</Text>
-        </View>
+        <Pressable
+          onPress={toggle}
+          accessibilityRole="button"
+          accessibilityLabel={muted ? "Unmute" : "Mute"}
+          style={({ pressed }) => [
+            styles.iconButton,
+            pressed && styles.iconButtonPressed,
+          ]}
+        >
+          <Text style={styles.iconText}>{muted ? "🔇" : "🔊"}</Text>
+        </Pressable>
       </View>
 
       <View style={styles.wheelArea} onLayout={onWheelLayout}>
@@ -89,6 +118,9 @@ const styles = StyleSheet.create({
     borderColor: "#1a1a1a",
     alignItems: "center",
     justifyContent: "center",
+  },
+  iconButtonPressed: {
+    opacity: 0.6,
   },
   iconText: {
     fontSize: 18,

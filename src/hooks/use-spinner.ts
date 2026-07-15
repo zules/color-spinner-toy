@@ -3,11 +3,12 @@ import type { LayoutChangeEvent } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
 import {
   cancelAnimation,
+  useAnimatedReaction,
   useFrameCallback,
   useSharedValue,
   withDecay,
 } from "react-native-reanimated";
-import { scheduleOnUI } from "react-native-worklets";
+import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 
 // Base SPIN impulse (rad/s) and decay rate. Tunable. Pressing SPIN adds this
 // much angular velocity in the wheel's current direction; ±10% jitter per press
@@ -16,6 +17,13 @@ const SPIN_VELOCITY = 28;
 const DECELERATION = 0.99998;
 // Below this |rad/s| the wheel counts as "at rest" for choosing a SPIN direction.
 const REST_EPSILON = 0.5;
+
+// Prong ticks: boundaries and prongs both sit at 120° spacing, so all three
+// boundaries sweep under all three prongs together every 120° of rotation —
+// one tick "moment" per step (spec §6). Throttle so a fast spin can't spam the
+// bridge; dropped ticks at blur speed are imperceptible.
+const TICK_STEP = (2 * Math.PI) / 3; // 120° in radians
+const TICK_MIN_MS = 50;
 
 export interface Spinner {
   /** Unbounded rotation in radians (spec §6). Feeds the Skia wheel directly. */
@@ -30,7 +38,9 @@ export interface Spinner {
   wheelSize: number;
 }
 
-export function useSpinner(): Spinner {
+// `onTick(isTouch)` fires once per prong-crossing moment; isTouch is true when
+// the spin is finger-driven (flick or scrub, and its decay), false for SPIN.
+export function useSpinner(onTick: (isTouch: boolean) => void): Spinner {
   // One unbounded rotation value in radians drives everything (spec §6). Never
   // wrapped; the Skia layer applies it modulo 2π for free.
   const rotation = useSharedValue(0);
@@ -42,6 +52,12 @@ export function useSpinner(): Spinner {
   const prevAngle = useSharedValue(0);
   const prevRotation = useSharedValue(0);
 
+  const nowMs = useSharedValue(0); // latest frame timestamp, for tick throttle
+  const lastTickMs = useSharedValue(0);
+  // 1 while the current motion is finger-driven (flick/scrub + its decay), 0
+  // once SPIN takes over — gates haptics (spec §6: never with SPIN).
+  const spinIsTouch = useSharedValue(0);
+
   const [wheelSize, setWheelSize] = useState(0);
 
   // Track true angular velocity every frame, whatever is driving rotation
@@ -49,6 +65,7 @@ export function useSpinner(): Spinner {
   // dt (after a stall/background) is ignored so velocity can't spike.
   useFrameCallback((frame) => {
     "worklet";
+    nowMs.value = frame.timestamp;
     const dt = frame.timeSincePreviousFrame;
     if (dt !== null && dt > 0 && dt < 64) {
       velocity.value = ((rotation.value - prevRotation.value) / dt) * 1000;
@@ -75,6 +92,7 @@ export function useSpinner(): Spinner {
         .onBegin((e) => {
           "worklet";
           cancelAnimation(rotation);
+          spinIsTouch.value = 1;
           prevAngle.value = Math.atan2(e.y - half.value, e.x - half.value);
         })
         .onUpdate((e) => {
@@ -99,7 +117,7 @@ export function useSpinner(): Spinner {
             deceleration: DECELERATION,
           });
         }),
-    [rotation, half, prevAngle],
+    [rotation, half, prevAngle, spinIsTouch],
   );
 
   // SPIN button: add a fresh, jittered impulse in the current spin direction
@@ -108,6 +126,7 @@ export function useSpinner(): Spinner {
     const jitter = 0.9 + Math.random() * 0.2;
     scheduleOnUI(() => {
       "worklet";
+      spinIsTouch.value = 0;
       const v = velocity.value;
       const dir = Math.abs(v) < REST_EPSILON ? 1 : Math.sign(v);
       rotation.value = withDecay({
@@ -115,7 +134,20 @@ export function useSpinner(): Spinner {
         deceleration: DECELERATION,
       });
     });
-  }, [rotation, velocity]);
+  }, [rotation, velocity, spinIsTouch]);
+
+  // Fire a tick each time the wheel advances past another 120° step (spec §6).
+  // All detection + throttle stays on the UI thread; only real ticks cross to JS.
+  useAnimatedReaction(
+    () => Math.floor(rotation.value / TICK_STEP),
+    (curr, prev) => {
+      if (prev === null || curr === prev) return;
+      if (nowMs.value - lastTickMs.value < TICK_MIN_MS) return;
+      lastTickMs.value = nowMs.value;
+      scheduleOnRN(onTick, spinIsTouch.value === 1);
+    },
+    [onTick],
+  );
 
   return { rotation, gesture, spin, onWheelLayout, wheelSize };
 }
