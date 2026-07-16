@@ -79,12 +79,12 @@ export default function MainScreen() {
   const backgroundColor = wheel?.backgroundColorId
     ? hexById(wheel.backgroundColorId)
     : "#ffffff";
-  const sliceColors: readonly [string, string, string] | null = wheel
-    ? [
-        hexById(wheel.slices[0].colorId),
-        hexById(wheel.slices[1].colorId),
-        hexById(wheel.slices[2].colorId),
-      ]
+  const slices = wheel
+    ? ([
+        { color: hexById(wheel.slices[0].colorId), texture: wheel.slices[0].texture },
+        { color: hexById(wheel.slices[1].colorId), texture: wheel.slices[1].texture },
+        { color: hexById(wheel.slices[2].colorId), texture: wheel.slices[2].texture },
+      ] as const)
     : null;
   const prongColor = wheel?.prongColorId ? hexById(wheel.prongColorId) : null;
   const glowColor = wheel?.glowColorId ? hexById(wheel.glowColorId) : null;
@@ -120,13 +120,14 @@ export default function MainScreen() {
       )}
 
       <View style={styles.wheelArea} onLayout={onWheelLayout}>
-        {wheelSize > 0 && sliceColors && (
+        {wheelSize > 0 && slices && wheel && (
           <Animated.View style={wheelShakeStyle}>
             <GestureDetector gesture={gesture}>
               <View style={{ width: wheelSize, height: wheelSize }}>
                 <SpinnerWheel
                   size={wheelSize}
-                  sliceColors={sliceColors}
+                  slices={slices}
+                  edge={wheel.edge}
                   prongColor={prongColor}
                   glowColor={glowColor}
                   rotation={rotation}

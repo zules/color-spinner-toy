@@ -32,3 +32,27 @@ export function shade(hex: string, amt: number): string {
   const to2 = (c: number) => c.toString(16).padStart(2, "0");
   return `#${to2(mix(r))}${to2(mix(g))}${to2(mix(b))}`;
 }
+
+/** Linear blend of two hex colors; t = 0 → a, t = 1 → b. */
+export function mixHex(a: string, b: string, t: number): string {
+  const ca = parseHex(a);
+  const cb = parseHex(b);
+  const to2 = (c: number) => clampByte(c).toString(16).padStart(2, "0");
+  const ch = (x: number, y: number) => to2(x + (y - x) * t);
+  return `#${ch(ca.r, cb.r)}${ch(ca.g, cb.g)}${ch(ca.b, cb.b)}`;
+}
+
+/** Per-channel multiply of two hex colors (photoshop "multiply"). */
+export function multiplyHex(a: string, b: string): string {
+  const ca = parseHex(a);
+  const cb = parseHex(b);
+  const to2 = (x: number, y: number) =>
+    clampByte((x * y) / 255).toString(16).padStart(2, "0");
+  return `#${to2(ca.r, cb.r)}${to2(ca.g, cb.g)}${to2(ca.b, cb.b)}`;
+}
+
+/** Hex → [r, g, b] in 0..1, for shader uniforms. */
+export function hexToRgb01(hex: string): [number, number, number] {
+  const { r, g, b } = parseHex(hex);
+  return [r / 255, g / 255, b / 255];
+}
