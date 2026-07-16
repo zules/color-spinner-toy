@@ -5,6 +5,7 @@ import {
   persistSave,
   RANDOMIZE_COOLDOWN_MS,
   type SaveFile,
+  UNLOCK_COOLDOWN_MS,
 } from "@/state/save";
 
 export interface SaveState {
@@ -15,14 +16,27 @@ export interface SaveState {
   /** Apply one Randomize mutation if the cooldown has elapsed; returns what
    *  changed (for the chip/sound), or null if not ready / not loaded. */
   applyRandomize: () => MutationChange | null;
+  /** Remove a color from the collection, returning it to the locked pool.
+   *  Refused (false) at the floor of 1 or for ids not in the collection
+   *  (spec §4). Main-screen elements showing it are left alone. */
+  forgetColor: (colorId: string) => boolean;
+  /** Stamp the 3:00 unlock cooldown. Called when an unlock spin *starts* —
+   *  if the app dies mid-spin the cooldown stands (spec §9). */
+  beginUnlockSpin: () => void;
+  /** Append a freshly unlocked color to the collection (on spin settle). */
+  unlockColor: (colorId: string) => void;
 }
 
 // Single owner of the save file (spec §8): loads on mount, persists debounced on
 // every change, one AsyncStorage key. Mute and cooldowns live here too.
 export function useSaveState(): SaveState {
   const [save, setSave] = useState<SaveFile | null>(null);
+  // Live mirror for event-time reads from stable callbacks. Synced in an
+  // effect (not during render) to stay React Compiler-safe.
   const saveRef = useRef<SaveFile | null>(null);
-  saveRef.current = save;
+  useEffect(() => {
+    saveRef.current = save;
+  }, [save]);
 
   useEffect(() => {
     let active = true;
@@ -56,5 +70,35 @@ export function useSaveState(): SaveState {
     return change;
   }, []);
 
-  return { save, toggleMute, applyRandomize };
+  const forgetColor = useCallback((colorId: string): boolean => {
+    const s = saveRef.current;
+    if (!s) return false;
+    if (s.collection.length <= 1) return false; // floor of 1 (spec §4)
+    if (!s.collection.includes(colorId)) return false;
+    setSave({ ...s, collection: s.collection.filter((id) => id !== colorId) });
+    return true;
+  }, []);
+
+  const beginUnlockSpin = useCallback(() => {
+    setSave((s) =>
+      s ? { ...s, unlockSpinReadyAt: Date.now() + UNLOCK_COOLDOWN_MS } : s,
+    );
+  }, []);
+
+  const unlockColor = useCallback((colorId: string) => {
+    setSave((s) =>
+      s && !s.collection.includes(colorId)
+        ? { ...s, collection: [...s.collection, colorId] }
+        : s,
+    );
+  }, []);
+
+  return {
+    save,
+    toggleMute,
+    applyRandomize,
+    forgetColor,
+    beginUnlockSpin,
+    unlockColor,
+  };
 }

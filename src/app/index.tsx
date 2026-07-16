@@ -10,6 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { playSparkle, playTick, preloadSounds } from "@/audio/sounds";
+import { ColorsOverlay } from "@/components/colors-overlay";
 import { MutationChip } from "@/components/mutation-chip";
 import { RandomizeSlot } from "@/components/randomize-slot";
 import { SpinnerWheel } from "@/components/spinner-wheel";
@@ -19,11 +20,23 @@ import { useSpinner } from "@/hooks/use-spinner";
 import { describeChange } from "@/state/mutations";
 
 export default function MainScreen() {
-  const { save, toggleMute, applyRandomize } = useSaveState();
+  const {
+    save,
+    toggleMute,
+    applyRandomize,
+    forgetColor,
+    beginUnlockSpin,
+    unlockColor,
+  } = useSaveState();
+  const [colorsOpen, setColorsOpen] = useState(false);
 
-  // Mute governs audio only; keep a live ref so the stable tick handler reads it.
+  // Mute governs audio only; keep a live ref so the stable tick handler reads
+  // it. Synced in an effect (not during render) — required with the React
+  // Compiler enabled, and ticks only ever fire post-commit anyway.
   const mutedRef = useRef(false);
-  mutedRef.current = save?.muted ?? false;
+  useEffect(() => {
+    mutedRef.current = save?.muted ?? false;
+  }, [save?.muted]);
 
   useEffect(() => {
     preloadSounds();
@@ -79,9 +92,14 @@ export default function MainScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor }]}>
       <View style={styles.header}>
-        <View style={styles.pill}>
+        <Pressable
+          onPress={() => setColorsOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Open colors"
+          style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+        >
           <Text style={styles.pillText}>🎨  COLORS</Text>
-        </View>
+        </Pressable>
         <Pressable
           onPress={toggleMute}
           accessibilityRole="button"
@@ -130,6 +148,17 @@ export default function MainScreen() {
       >
         <Text style={styles.spinText}>SPIN</Text>
       </Pressable>
+
+      {save && (
+        <ColorsOverlay
+          visible={colorsOpen}
+          onClose={() => setColorsOpen(false)}
+          save={save}
+          forgetColor={forgetColor}
+          beginUnlockSpin={beginUnlockSpin}
+          unlockColor={unlockColor}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -152,6 +181,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingVertical: 8,
+  },
+  pillPressed: {
+    opacity: 0.6,
   },
   pillText: {
     fontSize: 15,

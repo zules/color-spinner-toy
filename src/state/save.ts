@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { PALETTE, STARTER_COLOR_IDS } from "@/constants/palette";
+import { colorById, PALETTE, STARTER_COLOR_IDS } from "@/constants/palette";
 
 // Full save-file shape (spec §8). One key holds the whole object.
 export type TextureKind = "solid" | "marble" | "glitter";
@@ -22,8 +22,8 @@ export interface SaveFile {
 }
 
 export const SAVE_KEY = "save.v1";
-export const RANDOMIZE_COOLDOWN_MS = 10_000; // spec §4
-export const UNLOCK_COOLDOWN_MS = 180_000; // 3:00, used from M5
+export const RANDOMIZE_COOLDOWN_MS = 3_000; // spec §4
+export const UNLOCK_COOLDOWN_MS = 5_000;
 
 const TEXTURES: TextureKind[] = ["solid", "marble", "glitter"];
 
@@ -49,8 +49,16 @@ export function defaultSave(): SaveFile {
   };
 }
 
-function isColorIdOrNull(v: unknown): v is string | null {
-  return v === null || typeof v === "string";
+// An id that exists in the CURRENT palette. Checking `typeof string` is not
+// enough: a save written against an older palette (e.g. the pre-M5 starter
+// trio's "coral") would smuggle dead ids into the collection, and Randomize
+// would happily roll colors that no longer exist.
+function isPaletteId(v: unknown): v is string {
+  return typeof v === "string" && colorById(v) !== undefined;
+}
+
+function isPaletteIdOrNull(v: unknown): v is string | null {
+  return v === null || isPaletteId(v);
 }
 
 // Rebuild a valid WheelState from unknown parsed data, falling back per-field so
@@ -61,14 +69,19 @@ function normalizeWheel(input: unknown, d: WheelState): WheelState {
 
   let slices = d.slices;
   if (Array.isArray(w.slices) && w.slices.length === 3) {
-    const ok = w.slices.every(
-      (s) =>
-        typeof s === "object" &&
-        s !== null &&
-        typeof (s as { colorId?: unknown }).colorId === "string" &&
-        TEXTURES.includes((s as { texture?: unknown }).texture as TextureKind),
-    );
-    if (ok) slices = w.slices as WheelState["slices"];
+    // Per-slice fallback: one stale colorId costs that slice, not the wheel.
+    slices = w.slices.map((s, i) => {
+      const sl = (typeof s === "object" && s !== null ? s : {}) as {
+        colorId?: unknown;
+        texture?: unknown;
+      };
+      return {
+        colorId: isPaletteId(sl.colorId) ? sl.colorId : d.slices[i].colorId,
+        texture: TEXTURES.includes(sl.texture as TextureKind)
+          ? (sl.texture as TextureKind)
+          : d.slices[i].texture,
+      };
+    });
   }
 
   const edgeInput = w.edge as { lumpy?: unknown; seed?: unknown } | undefined;
@@ -81,11 +94,13 @@ function normalizeWheel(input: unknown, d: WheelState): WheelState {
 
   return {
     slices,
-    prongColorId: isColorIdOrNull(w.prongColorId) ? w.prongColorId : d.prongColorId,
-    backgroundColorId: isColorIdOrNull(w.backgroundColorId)
+    prongColorId: isPaletteIdOrNull(w.prongColorId)
+      ? w.prongColorId
+      : d.prongColorId,
+    backgroundColorId: isPaletteIdOrNull(w.backgroundColorId)
       ? w.backgroundColorId
       : d.backgroundColorId,
-    glowColorId: isColorIdOrNull(w.glowColorId) ? w.glowColorId : d.glowColorId,
+    glowColorId: isPaletteIdOrNull(w.glowColorId) ? w.glowColorId : d.glowColorId,
     edge,
   };
 }
@@ -101,16 +116,23 @@ function normalize(parsed: unknown): SaveFile {
   const clamp = (v: unknown, dur: number) =>
     typeof v === "number" && Number.isFinite(v) ? Math.min(v, now + dur) : 0;
 
-  const collection =
-    Array.isArray(p.collection) &&
-    p.collection.length >= 1 &&
-    p.collection.every((x) => typeof x === "string")
-      ? (p.collection as string[])
-      : d.collection;
+  // Keep only ids the current palette knows, deduped, in saved unlock order —
+  // a save written against an older palette self-heals here. If nothing valid
+  // survives, fall back to the day-one starter trio (floor of 1, spec §4).
+  const seenIds = new Set<string>();
+  const collection: string[] = [];
+  if (Array.isArray(p.collection)) {
+    for (const x of p.collection) {
+      if (isPaletteId(x) && !seenIds.has(x)) {
+        seenIds.add(x);
+        collection.push(x);
+      }
+    }
+  }
 
   return {
     version: 1,
-    collection,
+    collection: collection.length >= 1 ? collection : d.collection,
     wheel: normalizeWheel(p.wheel, d.wheel),
     randomizeReadyAt: clamp(p.randomizeReadyAt, RANDOMIZE_COOLDOWN_MS),
     unlockSpinReadyAt: clamp(p.unlockSpinReadyAt, UNLOCK_COOLDOWN_MS),

@@ -82,7 +82,7 @@ Algorithm:
 
 1. Pick a mutation type according to chance in table above.
 2. Pick the target value (slice index where applicable; color uniformly from the collection; texture uniformly from the three).
-3. **No-op guard**: if the result equals the current value, re-roll the value. (Type 4 can never no-op.) Duplicate colors across different elements are fine — three identical slices is a legitimate, funny outcome. **[ASSUMED]**
+3. **No-op guard**: if the result equals the current value, re-roll the value. (Type 4 can never no-op.) Duplicate colors across different elements are fine — three identical slices is a legitimate, funny outcome. **[ASSUMED]** A mutation type that cannot change anything at all (e.g. one unlocked color that every candidate element already shows) is excluded from step 1's roll entirely and the remaining weights renormalize; viability is per element, so a slice still displaying a forgotten color remains a valid target (decided July 2026).
 4. Animate the change with a minor visual shake, a disappearing chip sharing which element was changed, a distinct "randomize sparkle" sound.
 5. Set `randomizeReadyAt = now + 10_000` and persist the new wheel state.
 
@@ -159,4 +159,4 @@ Recommended order is as listed; M6 and M7 can swap. Nothing in M6–M7 blocks M8
 
 ## 11. Decision log
 
-Explicitly decided (interview, July 2026): colors reach the main wheel **only via Randomize**; forgotten colors **return to the unlock wheel**; the unlock spin outcome is **whatever slice it physically lands on**; cooldowns are **real elapsed time** (timestamp-based); durations are **10s / 3:00** as wireframed; **full wheel state persists** across restarts; **Android only**; forget floor of **1**; v1 sounds are **prong ticks, randomize sparkle, unlock fanfare** (no whoosh).
+Explicitly decided (interview, July 2026): colors reach the main wheel **only via Randomize**; forgotten colors **return to the unlock wheel**; the unlock spin outcome is **whatever slice it physically lands on**; cooldowns are **real elapsed time** (timestamp-based); durations are **10s / 3:00** as wireframed; **full wheel state persists** across restarts; **Android only**; forget floor of **1**; v1 sounds are **prong ticks, randomize sparkle, unlock fanfare** (no whoosh). Decided during M5 (July 2026): **guaranteed-no-op mutation types are excluded from the Randomize roll** (weights renormalize over the viable set); after an unlock the winning color **holds under the pointer for 1.5s** before joining the grid, with the collection saved at landing.

@@ -31,35 +31,66 @@ const WEIGHTS: [MutationKind, number][] = [
 
 const TEXTURES: TextureKind[] = ["solid", "marble", "glitter"];
 
-function pickKind(): MutationKind {
-  const r = Math.random() * 100;
+/** Can `current` be changed to something else from the collection? */
+function hasAlternative(collection: string[], current: string | null): boolean {
+  return collection.some((id) => id !== current);
+}
+
+// A kind may only roll if it can actually change something right now — a
+// guaranteed no-op (e.g. one unlocked color and the element already shows it)
+// is not a valid randomization. Checked per element, not per collection size:
+// a slice still displaying a forgotten color is a real target even when only
+// one color is unlocked. sliceTexture and edge always have an alternative, so
+// the viable set is never empty.
+function viableKinds(
+  wheel: WheelState,
+  collection: string[],
+): [MutationKind, number][] {
+  return WEIGHTS.filter(([kind]) => {
+    switch (kind) {
+      case "sliceColor":
+        return wheel.slices.some((s) => hasAlternative(collection, s.colorId));
+      case "background":
+        return hasAlternative(collection, wheel.backgroundColorId);
+      case "prongs":
+        return hasAlternative(collection, wheel.prongColorId);
+      case "glow":
+        return hasAlternative(collection, wheel.glowColorId);
+      default: // sliceTexture, edge
+        return true;
+    }
+  });
+}
+
+// Weighted pick among the viable kinds — dropping a non-viable kind implicitly
+// renormalizes the remaining weights (spec §5 chances apply when all six are
+// in play, which is the normal case with two or more colors unlocked).
+function pickKind(wheel: WheelState, collection: string[]): MutationKind {
+  const kinds = viableKinds(wheel, collection);
+  const total = kinds.reduce((sum, [, w]) => sum + w, 0);
+  const r = Math.random() * total;
   let acc = 0;
-  for (const [kind, w] of WEIGHTS) {
+  for (const [kind, w] of kinds) {
     acc += w;
     if (r < acc) return kind;
   }
-  return "glow";
+  return kinds[kinds.length - 1][0];
 }
 
-/** A color from the collection, re-rolled to differ from `exclude` (spec §5 no-op
- *  guard). With a single unlocked color the no-op is unavoidable and allowed. */
+/** A color from the collection, drawn from a pool that excludes the current
+ *  value — the spec §5 no-op guard, exact by construction rather than
+ *  re-rolled. Only a single-color collection can still no-op (unavoidable
+ *  and allowed: the target has no alternative). */
 function randColor(collection: string[], exclude: string | null): string {
-  if (collection.length === 0) return exclude ?? "";
-  let c = collection[Math.floor(Math.random() * collection.length)];
-  let guard = 0;
-  while (c === exclude && guard++ < 20) {
-    c = collection[Math.floor(Math.random() * collection.length)];
-  }
-  return c;
+  const pool =
+    exclude === null ? collection : collection.filter((id) => id !== exclude);
+  if (pool.length === 0) return exclude ?? "";
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function randTexture(exclude: TextureKind): TextureKind {
-  let t = TEXTURES[Math.floor(Math.random() * TEXTURES.length)];
-  let guard = 0;
-  while (t === exclude && guard++ < 20) {
-    t = TEXTURES[Math.floor(Math.random() * TEXTURES.length)];
-  }
-  return t;
+  const pool = TEXTURES.filter((t) => t !== exclude);
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function randSlice(): number {
@@ -82,10 +113,15 @@ export function applyMutation(
   wheel: WheelState,
   collection: string[],
 ): MutationOutcome {
-  const kind = pickKind();
+  const kind = pickKind(wheel, collection);
   switch (kind) {
     case "sliceColor": {
-      const slice = randSlice();
+      // Target only slices that can change — with two or more colors unlocked
+      // that's all three; with one it's just slices showing something else.
+      const targets = wheel.slices
+        .map((s, idx) => idx)
+        .filter((idx) => hasAlternative(collection, wheel.slices[idx].colorId));
+      const slice = targets[Math.floor(Math.random() * targets.length)];
       const colorId = randColor(collection, wheel.slices[slice].colorId);
       const slices = wheel.slices.map((s, idx) =>
         idx === slice ? { ...s, colorId } : s,
@@ -135,13 +171,16 @@ export function applyMutation(
   }
 }
 
-/** Human message for the mutation chip, e.g. "Background changed to Teal". */
+/** Human message for the mutation chip, e.g. "Background changed to Teal".
+ *  Slice messages name the target (1–3) — with duplicate slice colors on the
+ *  wheel, an unnumbered "Slice changed to Pink" is indistinguishable from a
+ *  no-op even when a different slice genuinely changed. */
 export function describeChange(c: MutationChange): string {
   switch (c.kind) {
     case "sliceColor":
-      return `Slice changed to ${nameById(c.colorId)}`;
+      return `Slice ${c.slice + 1} changed to ${nameById(c.colorId)}`;
     case "sliceTexture":
-      return `Texture changed to ${c.texture}`;
+      return `Slice ${c.slice + 1} texture changed to ${c.texture}`;
     case "background":
       return `Background changed to ${nameById(c.colorId)}`;
     case "edge":

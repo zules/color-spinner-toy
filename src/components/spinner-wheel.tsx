@@ -5,6 +5,7 @@ import {
   Group,
   LinearGradient,
   Path,
+  RadialGradient,
   Skia,
   vec,
 } from "@shopify/react-native-skia";
@@ -58,6 +59,19 @@ export function SpinnerWheel({
     });
   }, [cx, cy, R]);
 
+  // The three slice-boundary radii as one path, stroked twice below to etch a
+  // groove between slices. Without it, a wheel whose slices all share one
+  // color (a legitimate Randomize outcome) spins invisibly.
+  const boundaryPath = useMemo(() => {
+    const p = Skia.Path.Make();
+    for (const start of SLICE_STARTS) {
+      const rad = (start * Math.PI) / 180;
+      p.moveTo(cx, cy);
+      p.lineTo(cx + R * Math.cos(rad), cy + R * Math.sin(rad));
+    }
+    return p;
+  }, [cx, cy, R]);
+
   // One prong, drawn at 12 o'clock pointing inward. The three rendered copies
   // are just this shape rotated 0 / 120 / 240° about the wheel centre.
   const prong = useMemo(() => {
@@ -84,13 +98,13 @@ export function SpinnerWheel({
   const prongGradient = prongColor
     ? [shade(prongColor, 0.4), prongColor, shade(prongColor, -0.35)]
     : ["#efefef", "#a8a8a8", "#6f6f6f"];
-  const glowFill = glowColor ? withAlpha(glowColor, 0.55) : "rgba(38,38,54,0.40)";
+  const glowFill = glowColor ? withAlpha(glowColor, 1) : "rgba(38,38,54,0.40)";
 
   return (
     <Canvas style={{ width: size, height: size }}>
       {/* Soft glow / drop shadow behind the wheel (spec §3.1). */}
-      <Circle cx={cx} cy={cy + size * 0.012} r={R} color={glowFill}>
-        <Blur blur={size * 0.05} />
+      <Circle cx={cx} cy={cy} r={R * 1.15} color={glowFill}>
+        <Blur blur={size * 0.03} />
       </Circle>
 
       {/* Three solid pie slices — the only part that rotates. */}
@@ -98,6 +112,40 @@ export function SpinnerWheel({
         {slicePaths.map((path, i) => (
           <Path key={i} path={path} color={sliceColors[i]} />
         ))}
+
+        {/* Slice-boundary grooves, so identical slices still read as spinning.
+            Two passes: a wide light stroke (screen — only ever lightens) under
+            a thin dark core (multiply — only ever darkens). Whatever the slice
+            color — white, black, or the mid-grey that defeats difference-style
+            blends — at least one pass contrasts. The radial fade keeps the hub
+            clean where the three lines converge and puts the emphasis at the
+            rim, where motion reads. */}
+        <Path
+          path={boundaryPath}
+          style="stroke"
+          strokeWidth={Math.max(2, size * 0.009)}
+          blendMode="screen"
+        >
+          <RadialGradient
+            c={vec(cx, cy)}
+            r={R}
+            colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.55)"]}
+            positions={[0.2, 0.85]}
+          />
+        </Path>
+        <Path
+          path={boundaryPath}
+          style="stroke"
+          strokeWidth={Math.max(1, size * 0.005)}
+          blendMode="multiply"
+        >
+          <RadialGradient
+            c={vec(cx, cy)}
+            r={R}
+            colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.4)"]}
+            positions={[0.2, 0.85]}
+          />
+        </Path>
       </Group>
 
       {/* Crisp rim outline. */}

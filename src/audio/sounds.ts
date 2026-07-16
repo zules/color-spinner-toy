@@ -1,10 +1,10 @@
 import { type AudioPlayer, createAudioPlayer } from "expo-audio";
 
 // Preloaded one-shot SFX (spec §6: preload all at app start, keep tiny, respect
-// the mute toggle — muting is decided by the caller). The unlock fanfare joins
-// these in M5.
+// the mute toggle — muting is decided by the caller).
 let tickPlayer: AudioPlayer | null = null;
 let sparklePlayer: AudioPlayer | null = null;
+let fanfarePlayer: AudioPlayer | null = null;
 
 /** Create the players once, up front, so the first play has no load delay. */
 export function preloadSounds(): void {
@@ -15,6 +15,10 @@ export function preloadSounds(): void {
   if (!sparklePlayer) {
     sparklePlayer = createAudioPlayer(require("../../assets/sounds/sparkle.wav"));
     sparklePlayer.volume = 0.6; // gentle — it plays often
+  }
+  if (!fanfarePlayer) {
+    fanfarePlayer = createAudioPlayer(require("../../assets/sounds/fanfare.wav"));
+    fanfarePlayer.volume = 0.8; // the rarest treat gets the most presence
   }
 }
 
@@ -39,4 +43,10 @@ export function playTick(): void {
 export function playSparkle(): void {
   if (!sparklePlayer) preloadSounds();
   replay(sparklePlayer);
+}
+
+/** Play the unlock fanfare. */
+export function playFanfare(): void {
+  if (!fanfarePlayer) preloadSounds();
+  replay(fanfarePlayer);
 }

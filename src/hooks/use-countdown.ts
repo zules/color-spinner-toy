@@ -10,6 +10,9 @@ export function useCountdown(readyAt: number): number {
   );
 
   useEffect(() => {
+    // Re-sync once when readyAt changes (e.g. a cooldown starts) — one extra
+    // render, no loop.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRemaining(Math.max(0, readyAt - Date.now()));
     if (readyAt <= Date.now()) return;
     const id = setInterval(() => {
