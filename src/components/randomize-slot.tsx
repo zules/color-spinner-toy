@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -62,7 +63,10 @@ export function RandomizeSlot({ readyAt, onPress }: RandomizeSlotProps) {
             pressed && styles.readyButtonPressed,
           ]}
         >
-          <Text style={styles.readyText}>✦ Randomize!</Text>
+          <View style={styles.row}>
+            <Ionicons name="sparkles" size={16} color="#1a1a1a" />
+            <Text style={styles.readyText}>Randomize!</Text>
+          </View>
         </Pressable>
       </Animated.View>
     );
@@ -70,12 +74,20 @@ export function RandomizeSlot({ readyAt, onPress }: RandomizeSlotProps) {
 
   return (
     <View style={styles.lockedPill} accessibilityLabel="Randomize locked">
-      <Text style={styles.lockedText}>🔒 {formatCountdown(remaining)}</Text>
+      <View style={styles.row}>
+        <Ionicons name="lock-closed" size={15} color="#7a7a7a" />
+        <Text style={styles.lockedText}>{formatCountdown(remaining)}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
   readyButton: {
     alignSelf: "center",
     borderWidth: 2,

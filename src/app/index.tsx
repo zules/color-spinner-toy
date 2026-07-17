@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -151,7 +152,10 @@ export default function MainScreen() {
           accessibilityLabel="Open colors"
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
-          <Text style={styles.pillText}>🎨  COLORS</Text>
+          <View style={styles.pillRow}>
+            <Ionicons name="color-palette" size={18} color="#ffffff" />
+            <Text style={styles.pillText}>COLORS</Text>
+          </View>
         </Pressable>
         <View style={styles.headerRight}>
           <Pressable
@@ -178,7 +182,11 @@ export default function MainScreen() {
               pressed && styles.iconButtonPressed,
             ]}
           >
-            <Text style={styles.iconText}>{save?.muted ? "🔇" : "🔊"}</Text>
+            <Ionicons
+              name={save?.muted ? "volume-mute" : "volume-high"}
+              size={20}
+              color="#ffffff"
+            />
           </Pressable>
         </View>
       </View>
@@ -285,6 +293,11 @@ const styles = StyleSheet.create({
   pillPressed: {
     opacity: 0.6,
   },
+  pillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   pillText: {
     fontSize: 15,
     fontWeight: "700",
@@ -315,7 +328,7 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 18,
-    color: "#ffffff"
+    color: "#ffffff",
   },
   randomizeRow: {
     marginTop: 10,
