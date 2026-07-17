@@ -1,7 +1,5 @@
 import {
-  Blur,
   Canvas,
-  Circle,
   Group,
   LinearGradient,
   Path,
@@ -13,13 +11,7 @@ import {
 import { useMemo } from "react";
 import { type SharedValue, useDerivedValue } from "react-native-reanimated";
 import type { TextureKind } from "@/state/save";
-import {
-  hexToRgb01,
-  mixHex,
-  multiplyHex,
-  shade,
-  withAlpha,
-} from "@/utils/color";
+import { hexToRgb01, mixHex, multiplyHex, shade } from "@/utils/color";
 
 export interface WheelSlice {
   /** Hex fill for the slice. */
@@ -39,8 +31,6 @@ export interface SpinnerWheelProps {
   edge: { lumpy: boolean; seed: number };
   /** Prong tint hex, or null for adjacent-slice-tinted metal (spec §7). */
   prongColor?: string | null;
-  /** Glow hex, or null for the default soft shadow (spec §5 mutation #6). */
-  glowColor?: string | null;
   /** Spiral overlay hex, or null for no spiral (spec §5 mutation #7). */
   spiralColor?: string | null;
 }
@@ -181,14 +171,13 @@ export function SpinnerWheel({
   rotation,
   edge,
   prongColor = null,
-  glowColor = null,
   spiralColor = null,
 }: SpinnerWheelProps) {
   const cx = size / 2;
   const cy = size / 2;
-  const R = size * 0.4; // leaves room for prongs (1.05R) and the glow blur
+  const R = size * 0.4; // leaves room for the prongs (1.08R). Glow is a layer.
 
-  // Only the pie spins; the prongs, glow and rim frame stay fixed so a slice
+  // Only the pie spins; the prongs and rim frame stay fixed so a slice
   // boundary sweeps under a stationary prong on each pass (spec §6).
   const spinTransform = useDerivedValue(() => [{ rotate: rotation.value }]);
 
@@ -300,14 +289,11 @@ export function SpinnerWheel({
   // deep shadow, rebound. The tight 0.32→0.45→0.7 spacing is the "reflection".
   const prongStops = [0, 0.42, 0.55, 0.98, 1];
 
-  const glowFill = glowColor ? withAlpha(glowColor, 1) : "rgba(38,38,54,0.40)";
-
   return (
     <Canvas style={{ width: size, height: size }}>
-      {/* Soft glow / drop shadow behind the wheel (spec §3.1). */}
-      <Circle cx={cx} cy={cy} r={R * 1.10} color={glowFill}>
-        <Blur blur={size * 0.04} />
-      </Circle>
+      {/* The soft glow behind the wheel is its own layer (WheelGlow), below the
+          confetti, so the confetti renders on top of it and the blur isn't
+          clipped by this square canvas (spec §3.1). */}
 
       {/* The pie: slices, grooves — clipped to the (possibly lumpy) outline.
           Everything in this group rotates, lumps included. */}

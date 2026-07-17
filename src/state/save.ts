@@ -20,6 +20,7 @@ export interface SaveFile {
   randomizeReadyAt: number; // epoch ms
   unlockSpinReadyAt: number; // epoch ms
   muted: boolean;
+  particlesOn: boolean; // confetti snowglobe toggle; default on
 }
 
 export const SAVE_KEY = "save.v1";
@@ -48,6 +49,7 @@ export function defaultSave(): SaveFile {
     randomizeReadyAt: 0,
     unlockSpinReadyAt: 0,
     muted: false,
+    particlesOn: true,
   };
 }
 
@@ -142,6 +144,8 @@ function normalize(parsed: unknown): SaveFile {
     randomizeReadyAt: clamp(p.randomizeReadyAt, RANDOMIZE_COOLDOWN_MS),
     unlockSpinReadyAt: clamp(p.unlockSpinReadyAt, UNLOCK_COOLDOWN_MS),
     muted: p.muted === true,
+    // Absent (a pre-toggle save) → on; only an explicit false turns it off.
+    particlesOn: p.particlesOn !== false,
   };
 }
 

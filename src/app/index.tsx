@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -11,9 +11,11 @@ import Animated, {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { playSparkle, playTick, preloadSounds } from "@/audio/sounds";
 import { ColorsOverlay } from "@/components/colors-overlay";
+import { ConfettiLayer } from "@/components/confetti-layer";
 import { MutationChip } from "@/components/mutation-chip";
 import { RandomizeSlot } from "@/components/randomize-slot";
 import { SpinnerWheel } from "@/components/spinner-wheel";
+import { WheelGlow } from "@/components/wheel-glow";
 import { hexById } from "@/constants/palette";
 import { useSaveState } from "@/hooks/use-save-state";
 import { useSpinner } from "@/hooks/use-spinner";
@@ -23,6 +25,7 @@ export default function MainScreen() {
   const {
     save,
     toggleMute,
+    toggleParticles,
     applyRandomize,
     forgetColor,
     beginUnlockSpin,
@@ -47,8 +50,16 @@ export default function MainScreen() {
     if (isTouch) Haptics.selectionAsync();
   }, []);
 
-  const { rotation, gesture, spin, onWheelLayout, wheelSize } =
-    useSpinner(onTick);
+  const {
+    rotation,
+    velocity,
+    gesture,
+    spin,
+    onWheelLayout,
+    wheelSize,
+    fieldWidth,
+    fieldHeight,
+  } = useSpinner(onTick);
 
   // A quick shake on each mutation (spec §5.4). RN view transform, outside the
   // Skia canvas, so it composes with the wheel's own rotation.
@@ -90,6 +101,17 @@ export default function MainScreen() {
   const glowColor = wheel?.glowColorId ? hexById(wheel.glowColorId) : null;
   const spiralColor = wheel?.spiralColorId ? hexById(wheel.spiralColorId) : null;
 
+  // Confetti is tinted from the currently unlocked colors (radial-halo snowglobe
+  // around the wheel). Memoised on the collection so unrelated re-renders don't
+  // hand the layer a fresh array and churn its per-instance tints.
+  const collection = save?.collection;
+  const confettiColors = useMemo(
+    () => (collection ?? []).map(hexById),
+    [collection],
+  );
+  // Default on until the save resolves, so it never flashes "off" on launch.
+  const particlesOn = save?.particlesOn ?? true;
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor }]}>
       <View style={styles.header}>
@@ -101,17 +123,34 @@ export default function MainScreen() {
         >
           <Text style={styles.pillText}>🎨  COLORS</Text>
         </Pressable>
-        <Pressable
-          onPress={toggleMute}
-          accessibilityRole="button"
-          accessibilityLabel={save?.muted ? "Unmute" : "Mute"}
-          style={({ pressed }) => [
-            styles.iconButton,
-            pressed && styles.iconButtonPressed,
-          ]}
-        >
-          <Text style={styles.iconText}>{save?.muted ? "🔇" : "🔊"}</Text>
-        </Pressable>
+        <View style={styles.headerRight}>
+          <Pressable
+            onPress={toggleParticles}
+            accessibilityRole="button"
+            accessibilityLabel={
+              particlesOn ? "Turn confetti off" : "Turn confetti on"
+            }
+            accessibilityState={{ selected: particlesOn }}
+            style={({ pressed }) => [
+              styles.iconButton,
+              !particlesOn && styles.iconButtonOff,
+              pressed && styles.iconButtonPressed,
+            ]}
+          >
+            <Text style={styles.iconText}>✨</Text>
+          </Pressable>
+          <Pressable
+            onPress={toggleMute}
+            accessibilityRole="button"
+            accessibilityLabel={save?.muted ? "Unmute" : "Mute"}
+            style={({ pressed }) => [
+              styles.iconButton,
+              pressed && styles.iconButtonPressed,
+            ]}
+          >
+            <Text style={styles.iconText}>{save?.muted ? "🔇" : "🔊"}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {save && (
@@ -121,6 +160,33 @@ export default function MainScreen() {
       )}
 
       <View style={styles.wheelArea} onLayout={onWheelLayout}>
+        {/* Three stacked, absolutely-filled layers, painted back-to-front:
+            glow (bottom) → confetti → wheel (top). All share the wheel-area
+            frame, so the wheel centre is each canvas's centre. The glow gets
+            its own full-height layer so the confetti sits on top of it and the
+            blur isn't clipped by the square wheel canvas. */}
+        {fieldWidth > 0 && wheelSize > 0 && (
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <WheelGlow
+              width={fieldWidth}
+              height={fieldHeight}
+              wheelRadius={wheelSize * 0.4}
+              glowColor={glowColor}
+            />
+          </View>
+        )}
+        {particlesOn && fieldWidth > 0 && wheelSize > 0 && confettiColors.length > 0 && (
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <ConfettiLayer
+              width={fieldWidth}
+              height={fieldHeight}
+              wheelRadius={wheelSize * 0.4}
+              rotation={rotation}
+              velocity={velocity}
+              colors={confettiColors}
+            />
+          </View>
+        )}
         {wheelSize > 0 && slices && wheel && (
           <Animated.View style={wheelShakeStyle}>
             <GestureDetector gesture={gesture}>
@@ -130,7 +196,6 @@ export default function MainScreen() {
                   slices={slices}
                   edge={wheel.edge}
                   prongColor={prongColor}
-                  glowColor={glowColor}
                   spiralColor={spiralColor}
                   rotation={rotation}
                 />
@@ -170,6 +235,7 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: "#ffffff",
+    paddingVertical: 8,
   },
   header: {
     flexDirection: "row",
@@ -193,6 +259,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a1a1a",
   },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   iconButton: {
     width: 44,
     height: 44,
@@ -201,6 +272,11 @@ const styles = StyleSheet.create({
     borderColor: "#1a1a1a",
     alignItems: "center",
     justifyContent: "center",
+  },
+  // Confetti toggle in its off state — dimmed so it reads as inactive but
+  // clearly still tappable.
+  iconButtonOff: {
+    opacity: 0.4,
   },
   iconButtonPressed: {
     opacity: 0.6,

@@ -13,6 +13,8 @@ export interface SaveState {
   save: SaveFile | null;
   /** Flip mute (audio only; haptics stay on — spec §3.1). */
   toggleMute: () => void;
+  /** Flip the confetti snowglobe on/off. Persisted like mute. */
+  toggleParticles: () => void;
   /** Apply one Randomize mutation if the cooldown has elapsed; returns what
    *  changed (for the chip/sound), or null if not ready / not loaded. */
   applyRandomize: () => MutationChange | null;
@@ -60,6 +62,10 @@ export function useSaveState(): SaveState {
     setSave((s) => (s ? { ...s, muted: !s.muted } : s));
   }, []);
 
+  const toggleParticles = useCallback(() => {
+    setSave((s) => (s ? { ...s, particlesOn: !s.particlesOn } : s));
+  }, []);
+
   const applyRandomize = useCallback((): MutationChange | null => {
     const s = saveRef.current;
     if (!s) return null;
@@ -96,6 +102,7 @@ export function useSaveState(): SaveState {
   return {
     save,
     toggleMute,
+    toggleParticles,
     applyRandomize,
     forgetColor,
     beginUnlockSpin,

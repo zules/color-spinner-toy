@@ -14,6 +14,12 @@ import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 // much angular velocity in the wheel's current direction; ±10% jitter per press
 // keeps repeated taps from feeling canned (spec §6).
 const SPIN_VELOCITY = 28;
+// Hard cap on |wheel angular velocity| (rad/s) seeded into the decay from a SPIN
+// press or a flick release. Without it, mashing SPIN stacks velocity unbounded
+// and a hard flick can seed an arbitrarily fast spin. Adjustable: one SPIN press
+// adds SPIN_VELOCITY (28) rad/s, so 60 ≈ a couple of presses before it caps.
+// (An active finger-scrub is not capped — it tracks the finger directly.)
+const MAX_SPIN_VELOCITY = 60;
 const DECELERATION = 0.99998;
 // Below this |rad/s| the wheel counts as "at rest" for choosing a SPIN direction.
 const REST_EPSILON = 0.5;
@@ -28,6 +34,9 @@ const TICK_MIN_MS = 50;
 export interface Spinner {
   /** Unbounded rotation in radians (spec §6). Feeds the Skia wheel directly. */
   rotation: ReturnType<typeof useSharedValue<number>>;
+  /** Wheel angular velocity in rad/s. Sign = spin direction, magnitude = speed;
+   *  drives the confetti fling. Same UI-thread value SPIN reads to add impulse. */
+  velocity: ReturnType<typeof useSharedValue<number>>;
   /** Pan gesture for flick / scrub, to attach via <GestureDetector>. */
   gesture: ReturnType<typeof Gesture.Pan>;
   /** Apply one SPIN-button impulse. */
@@ -36,6 +45,10 @@ export interface Spinner {
   onWheelLayout: (e: LayoutChangeEvent) => void;
   /** Current wheel edge length in dp (0 until first layout). */
   wheelSize: number;
+  /** Full measured wheel-area size in dp (0 until first layout) — the confetti
+   *  field. The wheel is centred in it, so its centre is the wheel centre. */
+  fieldWidth: number;
+  fieldHeight: number;
 }
 
 // `onTick(isTouch)` fires once per prong-crossing moment; isTouch is true when
@@ -59,6 +72,8 @@ export function useSpinner(onTick: (isTouch: boolean) => void): Spinner {
   const spinIsTouch = useSharedValue(0);
 
   const [wheelSize, setWheelSize] = useState(0);
+  // Full wheel-area size, for the confetti field that fills it (spec: snowglobe).
+  const [field, setField] = useState({ width: 0, height: 0 });
 
   // Track true angular velocity every frame, whatever is driving rotation
   // (finger or decay). Pure UI-thread math, no React re-render (spec §7). A big
@@ -79,6 +94,9 @@ export function useSpinner(onTick: (isTouch: boolean) => void): Spinner {
       const next = Math.floor(Math.min(width, height));
       setWheelSize((prev) => (prev === next ? prev : next));
       half.value = next / 2;
+      const w = Math.floor(width);
+      const h = Math.floor(height);
+      setField((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
     },
     [half],
   );
@@ -113,7 +131,7 @@ export function useSpinner(onTick: (isTouch: boolean) => void): Spinner {
           // Angular velocity = z of (r × v) / |r|², from the release's linear velocity.
           const omega = r2 > 1 ? (rx * e.velocityY - ry * e.velocityX) / r2 : 0;
           rotation.value = withDecay({
-            velocity: omega,
+            velocity: Math.max(-MAX_SPIN_VELOCITY, Math.min(MAX_SPIN_VELOCITY, omega)),
             deceleration: DECELERATION,
           });
         }),
@@ -129,8 +147,9 @@ export function useSpinner(onTick: (isTouch: boolean) => void): Spinner {
       spinIsTouch.value = 0;
       const v = velocity.value;
       const dir = Math.abs(v) < REST_EPSILON ? 1 : Math.sign(v);
+      const seed = v + dir * SPIN_VELOCITY * jitter;
       rotation.value = withDecay({
-        velocity: v + dir * SPIN_VELOCITY * jitter,
+        velocity: Math.max(-MAX_SPIN_VELOCITY, Math.min(MAX_SPIN_VELOCITY, seed)),
         deceleration: DECELERATION,
       });
     });
@@ -149,5 +168,14 @@ export function useSpinner(onTick: (isTouch: boolean) => void): Spinner {
     [onTick],
   );
 
-  return { rotation, gesture, spin, onWheelLayout, wheelSize };
+  return {
+    rotation,
+    velocity,
+    gesture,
+    spin,
+    onWheelLayout,
+    wheelSize,
+    fieldWidth: field.width,
+    fieldHeight: field.height,
+  };
 }
