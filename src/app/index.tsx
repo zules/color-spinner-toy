@@ -128,7 +128,7 @@ export default function MainScreen() {
             onPress={toggleParticles}
             accessibilityRole="button"
             accessibilityLabel={
-              particlesOn ? "Turn confetti off" : "Turn confetti on"
+              particlesOn ? "Confetti off" : "Confetti on"
             }
             accessibilityState={{ selected: particlesOn }}
             style={({ pressed }) => [
@@ -137,7 +137,7 @@ export default function MainScreen() {
               pressed && styles.iconButtonPressed,
             ]}
           >
-            <Text style={styles.iconText}>✨</Text>
+            <Text style={styles.iconText}>{particlesOn ? "Confetti off" : "Confetti on"}</Text>
           </Pressable>
           <Pressable
             onPress={toggleMute}
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: "#ffffff",
-    paddingVertical: 8,
+    paddingVertical: 20,
   },
   header: {
     flexDirection: "row",
@@ -246,10 +246,11 @@ const styles = StyleSheet.create({
   },
   pill: {
     borderWidth: 2,
-    borderColor: "#1a1a1a",
+    borderColor: "#ffffff",
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    backgroundColor: "#000000",
   },
   pillPressed: {
     opacity: 0.6,
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: "#ffffff",
   },
   headerRight: {
     flexDirection: "row",
@@ -265,13 +266,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
-    width: 44,
+    paddingHorizontal: 10,
     height: 44,
     borderRadius: 22,
-    borderWidth: 2,
-    borderColor: "#1a1a1a",
+    borderWidth: 1,
+    borderColor: "#b3b3b3",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#000000"
   },
   // Confetti toggle in its off state — dimmed so it reads as inactive but
   // clearly still tappable.
@@ -283,9 +285,11 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 18,
+    color: "#ffffff"
   },
   randomizeRow: {
     marginTop: 10,
+    paddingVertical: 10,
     alignItems: "center",
   },
   wheelArea: {
@@ -301,9 +305,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 4,
+    borderColor: "#444444"
   },
   spinButtonPressed: {
-    opacity: 0.85,
+    opacity: 0.55,
   },
   spinText: {
     color: "#ffffff",
