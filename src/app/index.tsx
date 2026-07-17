@@ -20,6 +20,7 @@ import {
 } from "@/audio/sounds";
 import { ColorsOverlay } from "@/components/colors-overlay";
 import { ConfettiLayer } from "@/components/confetti-layer";
+import { ContentWarning } from "@/components/content-warning";
 import { MutationChip } from "@/components/mutation-chip";
 import { RandomizeSlot } from "@/components/randomize-slot";
 import { SpinnerWheel } from "@/components/spinner-wheel";
@@ -41,6 +42,9 @@ export default function MainScreen() {
     unlockColor,
   } = useSaveState();
   const [colorsOpen, setColorsOpen] = useState(false);
+  // Photosensitivity / motion warning gate — shown once per cold boot (spec:
+  // not persisted, so it reappears every launch). Starts unacknowledged.
+  const [warningAck, setWarningAck] = useState(false);
 
   // Mute governs audio only; keep a live ref so the stable tick handler reads
   // it. Synced in an effect (not during render) — required with the React
@@ -265,6 +269,11 @@ export default function MainScreen() {
           unlockColor={unlockColor}
         />
       )}
+
+      <ContentWarning
+        visible={!warningAck}
+        onContinue={() => setWarningAck(true)}
+      />
     </SafeAreaView>
   );
 }
