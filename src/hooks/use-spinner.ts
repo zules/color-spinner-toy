@@ -41,6 +41,10 @@ export interface Spinner {
   gesture: ReturnType<typeof Gesture.Pan>;
   /** Apply one SPIN-button impulse. */
   spin: () => void;
+  /** Freeze the wheel immediately (cancels any decay) so prong ticks stop
+   *  firing — used when the app backgrounds. Mid-flight rotation isn't
+   *  persisted (spec §8), so a frozen wheel on return is expected. */
+  stop: () => void;
   /** onLayout handler for the square wheel area. */
   onWheelLayout: (e: LayoutChangeEvent) => void;
   /** Current wheel edge length in dp (0 until first layout). */
@@ -155,6 +159,13 @@ export function useSpinner(onTick: (isTouch: boolean) => void): Spinner {
     });
   }, [rotation, velocity, spinIsTouch]);
 
+  // Halt the wheel where it stands. `cancelAnimation` is safe to call from the
+  // JS thread; it stops the decay so the tick reaction no longer crosses new
+  // 120° steps. velocity settles to 0 on the next frame the wheel is visible.
+  const stop = useCallback(() => {
+    cancelAnimation(rotation);
+  }, [rotation]);
+
   // Fire a tick each time the wheel advances past another 120° step (spec §6).
   // All detection + throttle stays on the UI thread; only real ticks cross to JS.
   useAnimatedReaction(
@@ -173,6 +184,7 @@ export function useSpinner(onTick: (isTouch: boolean) => void): Spinner {
     velocity,
     gesture,
     spin,
+    stop,
     onWheelLayout,
     wheelSize,
     fieldWidth: field.width,

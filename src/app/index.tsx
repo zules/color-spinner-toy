@@ -1,6 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useAnimatedStyle,
@@ -9,7 +9,13 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { playSparkle, playTick, preloadSounds } from "@/audio/sounds";
+import {
+  configureAudioMode,
+  playSparkle,
+  playTick,
+  preloadSounds,
+  stopAllSounds,
+} from "@/audio/sounds";
 import { ColorsOverlay } from "@/components/colors-overlay";
 import { ConfettiLayer } from "@/components/confetti-layer";
 import { MutationChip } from "@/components/mutation-chip";
@@ -42,6 +48,7 @@ export default function MainScreen() {
   }, [save?.muted]);
 
   useEffect(() => {
+    configureAudioMode();
     preloadSounds();
   }, []);
 
@@ -55,11 +62,26 @@ export default function MainScreen() {
     velocity,
     gesture,
     spin,
+    stop,
     onWheelLayout,
     wheelSize,
     fieldWidth,
     fieldHeight,
   } = useSpinner(onTick);
+
+  // When the app leaves the foreground, freeze the wheel and cut any SFX so the
+  // slow-decaying spin can't keep firing prong ticks over other apps (spec §2:
+  // the toy holds no background priority). "active" → do nothing; any other
+  // state ("background", and "inactive" on the platforms that emit it) stops it.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        stop();
+        stopAllSounds();
+      }
+    });
+    return () => sub.remove();
+  }, [stop]);
 
   // A quick shake on each mutation (spec §5.4). RN view transform, outside the
   // Skia canvas, so it composes with the wheel's own rotation.
