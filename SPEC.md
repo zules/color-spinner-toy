@@ -77,6 +77,7 @@ One press = exactly one mutation:
 | 4 | 5% | Circumference | Toggle wheel edge smooth ↔ lumpy; entering lumpy generates a fresh lump seed **[ASSUMED: toggle]** |
 | 5 | 10% | Prong color | All 3 prongs' tint → random unlocked color **[ASSUMED: prongs change together]** |
 | 6 | 15% | Glow color | Glow/shadow behind wheel → random unlocked color |
+| 7 | 10 | Spiral | Spiral overlay across all 3 slices, its own unlocked color. Absent → appears; extant → 50/50 recolor vs remove (removal forced when no alternative color exists). Added post-M7, July 2026. Weights are relative — they now sum to 110 and renormalize over the viable set. |
 
 Algorithm:
 
@@ -116,6 +117,7 @@ interface WheelState {
   prongColorId: string | null;   // null = default metal
   backgroundColorId: string | null;
   glowColorId: string | null;
+  spiralColorId: string | null;  // null = no spiral overlay yet (mutation #7)
   edge: { lumpy: boolean; seed: number };
 }
 

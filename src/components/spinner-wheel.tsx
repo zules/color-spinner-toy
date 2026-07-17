@@ -41,6 +41,8 @@ export interface SpinnerWheelProps {
   prongColor?: string | null;
   /** Glow hex, or null for the default soft shadow (spec §5 mutation #6). */
   glowColor?: string | null;
+  /** Spiral overlay hex, or null for no spiral (spec §5 mutation #7). */
+  spiralColor?: string | null;
 }
 
 // Slice boundaries sit at 12 / 4 / 8 o'clock. In Skia's angle convention
@@ -180,6 +182,7 @@ export function SpinnerWheel({
   edge,
   prongColor = null,
   glowColor = null,
+  spiralColor = null,
 }: SpinnerWheelProps) {
   const cx = size / 2;
   const cy = size / 2;
@@ -224,6 +227,26 @@ export function SpinnerWheel({
       const rad = (start * Math.PI) / 180;
       p.moveTo(cx, cy);
       p.lineTo(cx + R * 1.06 * Math.cos(rad), cy + R * 1.06 * Math.sin(rad));
+    }
+    return p;
+  }, [cx, cy, R]);
+
+  // Spiral overlay (spec §5 mutation #7): an Archimedean spiral from hub to
+  // rim, stroked in its own color over all three slices. Part of the pie —
+  // it rotates and is clipped with everything else, so it follows a lumpy
+  // edge too. Slightly overshoots R; the clip trims it.
+  const spiralPath = useMemo(() => {
+    const TURNS = 1.9;
+    const N = 220;
+    const p = Skia.Path.Make();
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const th = TURNS * 2 * Math.PI * t - Math.PI / 2;
+      const r = R * 1.06 * t;
+      const x = cx + r * Math.cos(th);
+      const y = cy + r * Math.sin(th);
+      if (i === 0) p.moveTo(x, y);
+      else p.lineTo(x, y);
     }
     return p;
   }, [cx, cy, R]);
@@ -314,6 +337,19 @@ export function SpinnerWheel({
             <Path key={i} path={path} color={s.color} />
           );
         })}
+
+        {/* Spiral overlay in its own color, across all three slices. Drawn
+            under the grooves so the boundary etching cuts through it. */}
+        {spiralColor && (
+          <Path
+            path={spiralPath}
+            style="stroke"
+            strokeWidth={Math.max(3, size * 0.058)}
+            strokeCap="round"
+            strokeJoin="round"
+            color={spiralColor}
+          />
+        )}
 
         {/* Slice-boundary grooves, so identical slices still read as spinning.
             Two passes: a wide light stroke (screen — only ever lightens) under

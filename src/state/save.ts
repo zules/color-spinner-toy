@@ -9,6 +9,7 @@ export interface WheelState {
   prongColorId: string | null; // null = default metal
   backgroundColorId: string | null;
   glowColorId: string | null;
+  spiralColorId: string | null; // null = no spiral overlay yet
   edge: { lumpy: boolean; seed: number };
 }
 
@@ -41,6 +42,7 @@ export function defaultSave(): SaveFile {
       prongColorId: null,
       backgroundColorId: null,
       glowColorId: null,
+      spiralColorId: null,
       edge: { lumpy: false, seed: 0 },
     },
     randomizeReadyAt: 0,
@@ -101,6 +103,9 @@ function normalizeWheel(input: unknown, d: WheelState): WheelState {
       ? w.backgroundColorId
       : d.backgroundColorId,
     glowColorId: isPaletteIdOrNull(w.glowColorId) ? w.glowColorId : d.glowColorId,
+    spiralColorId: isPaletteIdOrNull(w.spiralColorId)
+      ? w.spiralColorId
+      : d.spiralColorId,
     edge,
   };
 }

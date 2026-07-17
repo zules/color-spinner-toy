@@ -9,7 +9,8 @@ export type MutationKind =
   | "background"
   | "edge"
   | "prongs"
-  | "glow";
+  | "glow"
+  | "spiral";
 
 // What a mutation actually did, so the chip can name it specifically.
 export type MutationChange =
@@ -18,8 +19,11 @@ export type MutationChange =
   | { kind: "background"; colorId: string }
   | { kind: "edge"; lumpy: boolean }
   | { kind: "prongs"; colorId: string }
-  | { kind: "glow"; colorId: string };
+  | { kind: "glow"; colorId: string }
+  | { kind: "spiral"; colorId: string | null }; // null = spiral removed
 
+// Weights are relative — pickKind normalizes over the viable set, so they
+// don't need to sum to 100 (they sum to 110 with the spiral row).
 const WEIGHTS: [MutationKind, number][] = [
   ["sliceColor", 35],
   ["sliceTexture", 20],
@@ -27,6 +31,7 @@ const WEIGHTS: [MutationKind, number][] = [
   ["edge", 5],
   ["prongs", 10],
   ["glow", 15],
+  ["spiral", 10],
 ];
 
 const TEXTURES: TextureKind[] = ["solid", "marble", "glitter"];
@@ -56,6 +61,13 @@ function viableKinds(
         return hasAlternative(collection, wheel.prongColorId);
       case "glow":
         return hasAlternative(collection, wheel.glowColorId);
+      case "spiral":
+        // Extant spirals can always be removed; absent ones can always
+        // appear (the collection is never empty) — so always viable.
+        return (
+          wheel.spiralColorId !== null ||
+          hasAlternative(collection, wheel.spiralColorId)
+        );
       default: // sliceTexture, edge
         return true;
     }
@@ -119,7 +131,7 @@ export function applyMutation(
       // Target only slices that can change — with two or more colors unlocked
       // that's all three; with one it's just slices showing something else.
       const targets = wheel.slices
-        .map((s, idx) => idx)
+        .map((_, idx) => idx)
         .filter((idx) => hasAlternative(collection, wheel.slices[idx].colorId));
       const slice = targets[Math.floor(Math.random() * targets.length)];
       const colorId = randColor(collection, wheel.slices[slice].colorId);
@@ -168,6 +180,24 @@ export function applyMutation(
         change: { kind, colorId },
       };
     }
+    case "spiral": {
+      // Absent → appears. Extant → 50/50 recolor vs remove, except removal
+      // is forced when the collection offers no alternative color (a recolor
+      // would be a guaranteed no-op).
+      const extant = wheel.spiralColorId !== null;
+      const canRecolor = hasAlternative(collection, wheel.spiralColorId);
+      if (extant && (!canRecolor || Math.random() < 0.5)) {
+        return {
+          wheel: { ...wheel, spiralColorId: null },
+          change: { kind, colorId: null },
+        };
+      }
+      const colorId = randColor(collection, wheel.spiralColorId);
+      return {
+        wheel: { ...wheel, spiralColorId: colorId },
+        change: { kind, colorId },
+      };
+    }
   }
 }
 
@@ -189,5 +219,9 @@ export function describeChange(c: MutationChange): string {
       return `Prongs changed to ${nameById(c.colorId)}`;
     case "glow":
       return `Glow changed to ${nameById(c.colorId)}`;
+    case "spiral":
+      return c.colorId
+        ? `Spiral changed to ${nameById(c.colorId)}`
+        : "Spiral vanished!";
   }
 }

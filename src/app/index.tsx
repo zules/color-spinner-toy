@@ -88,6 +88,7 @@ export default function MainScreen() {
     : null;
   const prongColor = wheel?.prongColorId ? hexById(wheel.prongColorId) : null;
   const glowColor = wheel?.glowColorId ? hexById(wheel.glowColorId) : null;
+  const spiralColor = wheel?.spiralColorId ? hexById(wheel.spiralColorId) : null;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor }]}>
@@ -130,6 +131,7 @@ export default function MainScreen() {
                   edge={wheel.edge}
                   prongColor={prongColor}
                   glowColor={glowColor}
+                  spiralColor={spiralColor}
                   rotation={rotation}
                 />
               </View>
