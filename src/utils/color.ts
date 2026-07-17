@@ -56,3 +56,14 @@ export function hexToRgb01(hex: string): [number, number, number] {
   const { r, g, b } = parseHex(hex);
   return [r / 255, g / 255, b / 255];
 }
+
+/**
+ * True when a color is dark enough that light (white) foreground content reads
+ * better on it than dark content — e.g. choosing status-bar icon colour so the
+ * clock stays visible when the background is randomized to black. Uses the
+ * classic YIQ perceived-brightness midpoint (128).
+ */
+export function isDark(hex: string): boolean {
+  const { r, g, b } = parseHex(hex);
+  return (r * 299 + g * 587 + b * 114) / 1000 < 128;
+}

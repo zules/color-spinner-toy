@@ -1,4 +1,5 @@
 import * as Haptics from "expo-haptics";
+import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
@@ -23,6 +24,7 @@ import { RandomizeSlot } from "@/components/randomize-slot";
 import { SpinnerWheel } from "@/components/spinner-wheel";
 import { WheelGlow } from "@/components/wheel-glow";
 import { hexById } from "@/constants/palette";
+import { isDark } from "@/utils/color";
 import { useSaveState } from "@/hooks/use-save-state";
 import { useSpinner } from "@/hooks/use-spinner";
 import { describeChange } from "@/state/mutations";
@@ -112,6 +114,11 @@ export default function MainScreen() {
   const backgroundColor = wheel?.backgroundColorId
     ? hexById(wheel.backgroundColorId)
     : "#ffffff";
+  // Keep the status-bar clock/icons legible: light icons on a dark background
+  // (e.g. randomized to black), dark icons otherwise. The COLORS modal sits
+  // below the status bar (doesn't draw under it), so the bar always reflects
+  // the main-screen background even while the overlay is open.
+  const statusBarStyle = isDark(backgroundColor) ? "light" : "dark";
   const slices = wheel
     ? ([
         { color: hexById(wheel.slices[0].colorId), texture: wheel.slices[0].texture },
@@ -136,6 +143,7 @@ export default function MainScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor }]}>
+      <StatusBar style={statusBarStyle} />
       <View style={styles.header}>
         <Pressable
           onPress={() => setColorsOpen(true)}
