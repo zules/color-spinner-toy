@@ -187,19 +187,19 @@ export function UnlockWheel({
               <View
                 style={[
                   styles.pointerTip,
-                  { borderRightColor: canSpin ? "#ffffff" : "#3d3d3d" },
+                  { borderRightColor: canSpin ? "#ffffff" : "#f8f669" },
                 ]}
               />
               <View
                 style={[
                   styles.pointerBody,
-                  { backgroundColor: canSpin ? "#ffffff" : "#3d3d3d" },
+                  { backgroundColor: canSpin ? "#ffffff" : "#f8f669" },
                 ]}
               >
                 <Text
                   style={[
                     styles.pointerText,
-                    { color: canSpin ? "#1a1a1a" : "#8a8a8a" },
+                    { color: canSpin ? "#1a1a1a" : "#000000" },
                   ]}
                 >
                   SPIN

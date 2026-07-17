@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 58,
   },
   button: {
     minHeight: 54,

@@ -19,7 +19,7 @@ const SPIN_VELOCITY = 28;
 // and a hard flick can seed an arbitrarily fast spin. Adjustable: one SPIN press
 // adds SPIN_VELOCITY (28) rad/s, so 60 ≈ a couple of presses before it caps.
 // (An active finger-scrub is not capped — it tracks the finger directly.)
-const MAX_SPIN_VELOCITY = 60;
+const MAX_SPIN_VELOCITY = 25;
 const DECELERATION = 0.99998;
 // Below this |rad/s| the wheel counts as "at rest" for choosing a SPIN direction.
 const REST_EPSILON = 0.5;

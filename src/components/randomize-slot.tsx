@@ -113,6 +113,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     paddingHorizontal: 22,
     paddingVertical: 9,
+    backgroundColor: "#d6d6d6"
   },
   lockedText: {
     fontSize: 16,
