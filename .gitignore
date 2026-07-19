@@ -18,6 +18,20 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Signing secrets — NEVER commit these. Losing them is recoverable via Google
+# Play support; leaking them lets anyone sign a build as us.
+# `eas credentials` writes credentials.json + the keystore when downloading a
+# backup from EAS. Keep both outside the repo (password manager / encrypted
+# drive). Android keystores use .jks or .keystore depending on how they're made.
+credentials.json
+*.keystore
+# Google Play service account key, used by `eas submit`.
+*service-account*.json
+# Google Cloud hands these out with opaque names (api-8945873498534.json), which
+# no safe pattern catches. Put any such key in secrets/ and point eas.json at it
+# via submit.production.serviceAccountKeyPath.
+secrets/
+
 # Metro
 .metro-health-check*
 
