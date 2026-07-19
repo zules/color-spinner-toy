@@ -1,5 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colorById, PALETTE, STARTER_COLOR_IDS } from "@/constants/palette";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Full save-file shape (spec §8). One key holds the whole object.
 export type TextureKind = "solid" | "marble" | "glitter";
@@ -24,8 +24,8 @@ export interface SaveFile {
 }
 
 export const SAVE_KEY = "save.v1";
-export const RANDOMIZE_COOLDOWN_MS = 3_000; // spec §4
-export const UNLOCK_COOLDOWN_MS = 5_000;
+export const RANDOMIZE_COOLDOWN_MS = 2_000;
+export const UNLOCK_COOLDOWN_MS = 15_000;
 
 const TEXTURES: TextureKind[] = ["solid", "marble", "glitter"];
 
@@ -104,7 +104,9 @@ function normalizeWheel(input: unknown, d: WheelState): WheelState {
     backgroundColorId: isPaletteIdOrNull(w.backgroundColorId)
       ? w.backgroundColorId
       : d.backgroundColorId,
-    glowColorId: isPaletteIdOrNull(w.glowColorId) ? w.glowColorId : d.glowColorId,
+    glowColorId: isPaletteIdOrNull(w.glowColorId)
+      ? w.glowColorId
+      : d.glowColorId,
     spiralColorId: isPaletteIdOrNull(w.spiralColorId)
       ? w.spiralColorId
       : d.spiralColorId,

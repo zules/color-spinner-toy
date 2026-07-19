@@ -21,7 +21,7 @@ export interface ColorsOverlayProps {
   save: SaveFile;
   /** Remove a color from the collection; false = refused (floor of 1). */
   forgetColor: (colorId: string) => boolean;
-  /** Stamp the 3:00 unlock cooldown (called at spin start — spec §9). */
+  /** Stamp the unlock cooldown (called at spin start — spec §9). */
   beginUnlockSpin: () => void;
   /** Append a freshly unlocked color to the collection. */
   unlockColor: (colorId: string) => void;

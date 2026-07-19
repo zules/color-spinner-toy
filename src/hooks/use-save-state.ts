@@ -22,7 +22,7 @@ export interface SaveState {
    *  Refused (false) at the floor of 1 or for ids not in the collection
    *  (spec §4). Main-screen elements showing it are left alone. */
   forgetColor: (colorId: string) => boolean;
-  /** Stamp the 3:00 unlock cooldown. Called when an unlock spin *starts* —
+  /** Stamp the unlock cooldown. Called when an unlock spin *starts* —
    *  if the app dies mid-spin the cooldown stands (spec §9). */
   beginUnlockSpin: () => void;
   /** Append a freshly unlocked color to the collection (on spin settle). */

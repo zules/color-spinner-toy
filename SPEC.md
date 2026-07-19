@@ -34,7 +34,7 @@ The app is one screen plus one overlay. Wireframe references in parentheses.
 - **Wheel**: a 3-slice pie, each slice an unlocked color with a texture (solid / marble / glitter). Three metallic prongs sit at the rim at 12, 4, and 8 o'clock, pointing inward. A soft glow/shadow sits behind the wheel.
 - **SPIN button** (bottom, full width): applies a consistent, satisfying spin velocity every press. Always enabled; pressing mid-spin adds a fresh impulse.
 - **Flick gesture** on the wheel: pan/fling drives rotation directly, including slow back-and-forth scrubbing. Release hands off the gesture's angular velocity to a decay animation. Both directions supported.
-- **Randomize slot** (top center): shows a locked pill with a countdown (1c, e.g. `🔒 0:09`) during cooldown, and a bouncy `✦ Randomize!` button (1d) when ready. Pressing it applies one mutation (section 5) and restarts the 10-second cooldown.
+- **Randomize slot** (top center): shows a locked pill with a countdown (1c, e.g. `🔒 0:02`) during cooldown, and a bouncy `✦ Randomize!` button (1d) when ready. Pressing it applies one mutation (section 5) and restarts the 2-second cooldown.
 - **COLORS button** (top left): opens the COLORS overlay.
 - **Mute toggle** (top right): mutes all audio. Haptics stay on when muted **[ASSUMED]**. State persists.
 
@@ -44,13 +44,13 @@ Dark-themed overlay (bottom sheet or full-screen modal — builder's choice) wit
 
 - **Collection grid**: 35 slots, 5×7. Unlocked colors render as tappable-looking swatches in unlock order, followed by `?` placeholders for each still-locked color (3a shows the day-one state: 3 unlocked, 32 `?`). Swatches in the grid are display-only in normal mode — equipping is not a thing; colors only reach the wheel via Randomize.
 - **FORGET COLOR** (top left): toggles forget mode (2b). In forget mode a contextual instruction appears ("↑ choose a color to forget…"), unlocked swatches highlight, and everything else dims and disables. Tapping a swatch forgets it immediately (no confirm dialog — forgetting is low-stakes by design since the color returns to the unlock wheel). Forget mode exits after one forget, or via tapping FORGET COLOR again or the ✕.
-- **SPIN TO UNLOCK**: a wheel whose slices are exactly the locked colors, in palette order, equal arc sizes (3a: 32 slices). A pointer/notch marks the winning position. The SPIN button next to it is enabled when the unlock cooldown has elapsed and at least one color is locked; during cooldown the whole zone dims and the timer counts down (3b, `2:59`). The wheel spins with a strong impulse plus a random offset, decays naturally, and **whatever slice the pointer rests on is the color you unlock** — the physics result is the outcome, no rigging, no rarity weighting. On settle: fanfare sound, reveal animation in the grid, slice removed from the unlock wheel, cooldown restarts at 3:00.
+- **SPIN TO UNLOCK**: a wheel whose slices are exactly the locked colors, in palette order, equal arc sizes (3a: 32 slices). A pointer/notch marks the winning position. The SPIN button next to it is enabled when the unlock cooldown has elapsed and at least one color is locked; during cooldown the whole zone dims and the timer counts down (3b, `0:15`). The wheel spins with a strong impulse plus a random offset, decays naturally, and **whatever slice the pointer rests on is the color you unlock** — the physics result is the outcome, no rigging, no rarity weighting. On settle: fanfare sound, reveal animation in the grid, slice removed from the unlock wheel, cooldown restarts at 0:15.
 
 ## 4. The color economy
 
 - **Palette**: 35 curated colors defined in a constants file (`palette.ts`), each with a stable `id`, display color, and palette-order index. **[ASSUMED]** The first 3 palette entries are the starter colors; pick a pleasing trio.
 - **Collection**: the set of unlocked color ids, stored in unlock order. Starts at 3.
-- **Unlock**: one color per unlock-wheel spin, gated by a 3:00 cooldown.
+- **Unlock**: one color per unlock-wheel spin, gated by a 15-second cooldown.
 - **Forget**: removes a color from the collection and returns it to the locked pool, so it reappears as a slice on the unlock wheel. This is the replayability loop — the unlock wheel never permanently runs dry unless the player chooses to unlock everything.
 - **Floor of 1**: forgetting is disabled (swatches un-highlighted, or a gentle shake + message) when the collection is at 1. The randomize option must always have one color to work with.
 - **Wheel invariant**: the main wheel, prongs, background, and glow may persist their colors even if the color is forgotten. If a forgotten color is currently displayed anywhere on the main screen, do not immediately re-roll those elements. Simply do not allow the colors to be rolled again.
@@ -60,8 +60,10 @@ Dark-themed overlay (bottom sheet or full-screen modal — builder's choice) wit
 
 | Timer | Duration | Gates |
 |---|---|---|
-| Randomize | 10 seconds | Randomize button on main screen |
-| Unlock spin | 3 minutes | SPIN in the COLORS overlay |
+| Randomize | 2 seconds | Randomize button on main screen |
+| Unlock spin | 15 seconds | SPIN in the COLORS overlay |
+
+Durations live in `src/state/save.ts` as `RANDOMIZE_COOLDOWN_MS` and `UNLOCK_COOLDOWN_MS`. **That file is the source of truth**; this table documents it. Retune there and update here.
 
 Both are **timestamp-based real elapsed time**: store `readyAt` (epoch ms) in AsyncStorage at the moment the action fires, and compare against `Date.now()` whenever the UI needs to render. No background timers, no libraries — a 1-second interval while the app is foregrounded drives the countdown display only. Time passing while the app is closed counts. Guardrail: on load, clamp `readyAt` to at most `now + duration` so a device-clock change can never lock the player out for hours; clock-cheating *forward* to skip cooldowns is fine — zero stakes **[ASSUMED]**.
 
@@ -85,7 +87,7 @@ Algorithm:
 2. Pick the target value (slice index where applicable; color uniformly from the collection; texture uniformly from the three).
 3. **No-op guard**: if the result equals the current value, re-roll the value. (Type 4 can never no-op.) Duplicate colors across different elements are fine — three identical slices is a legitimate, funny outcome. **[ASSUMED]** A mutation type that cannot change anything at all (e.g. one unlocked color that every candidate element already shows) is excluded from step 1's roll entirely and the remaining weights renormalize; viability is per element, so a slice still displaying a forgotten color remains a valid target (decided July 2026).
 4. Animate the change with a minor visual shake, a disappearing chip sharing which element was changed, a distinct "randomize sparkle" sound.
-5. Set `randomizeReadyAt = now + 10_000` and persist the new wheel state.
+5. Set `randomizeReadyAt = now + RANDOMIZE_COOLDOWN_MS` and persist the new wheel state.
 
 ## 6. Spin feel, haptics, sound
 
@@ -151,8 +153,8 @@ Each milestone ends in something runnable on a physical Android device.
 - **M1 — Static wheel**: Skia canvas draws 3 solid slices, 3 grey prongs, glow. Correct on multiple screen densities.
 - **M2 — Motion**: rotation sharedValue, flick gesture with decay, SPIN button impulse. Verify 60fps with slow-frame overlay.
 - **M3 — Ticks**: prong-crossing detection, haptics, tick sound, mute toggle.
-- **M4 — Randomize**: all 6 mutations, no-op guard, 10s cooldown UI, save/restore wheel state.
-- **M5 — Color economy**: COLORS overlay, grid, unlock wheel + landing logic, forget mode, 3:00 cooldown, floor of 1.
+- **M4 — Randomize**: all 6 mutations, no-op guard, 2s cooldown UI, save/restore wheel state.
+- **M5 — Color economy**: COLORS overlay, grid, unlock wheel + landing logic, forget mode, 15s cooldown, floor of 1.
 - **M6 — Shaders**: marble, glitter, metal-tint prongs, lumpy edge.
 - **M7 — Juice pass**: particles, reveal/fanfare animations, sound polish, icon + splash.
 - **M8 — Ship (the actual lesson)**: EAS Build config, Android keystore/signing via EAS, produce an AAB, Play Console internal testing track, invite testers.
@@ -161,4 +163,6 @@ Recommended order is as listed; M6 and M7 can swap. Nothing in M6–M7 blocks M8
 
 ## 11. Decision log
 
-Explicitly decided (interview, July 2026): colors reach the main wheel **only via Randomize**; forgotten colors **return to the unlock wheel**; the unlock spin outcome is **whatever slice it physically lands on**; cooldowns are **real elapsed time** (timestamp-based); durations are **10s / 3:00** as wireframed; **full wheel state persists** across restarts; **Android only**; forget floor of **1**; v1 sounds are **prong ticks, randomize sparkle, unlock fanfare** (no whoosh). Decided during M5 (July 2026): **guaranteed-no-op mutation types are excluded from the Randomize roll** (weights renormalize over the viable set); after an unlock the winning color **holds under the pointer for 1.5s** before joining the grid, with the collection saved at landing.
+Explicitly decided (interview, July 2026): colors reach the main wheel **only via Randomize**; forgotten colors **return to the unlock wheel**; the unlock spin outcome is **whatever slice it physically lands on**; cooldowns are **real elapsed time** (timestamp-based); **full wheel state persists** across restarts; **Android only**; forget floor of **1**; v1 sounds are **prong ticks, randomize sparkle, unlock fanfare** (no whoosh). Decided during M5 (July 2026): **guaranteed-no-op mutation types are excluded from the Randomize roll** (weights renormalize over the viable set); after an unlock the winning color **holds under the pointer for 1.5s** before joining the grid, with the collection saved at landing.
+
+Revised pre-M8 (19 July 2026) after playing the built app on-device: cooldown durations are now **2s / 0:15**, down from the wireframed 10s / 3:00. The original figures were never load-bearing — they were guesses made before the toy existed, and at real playing speed they read as dead air rather than anticipation. The wireframes in `docs/wireframes/` still show the old `0:09` and `2:59` pills; treat the durations there as stale, not the layout. Note the knock-on: at 15s a player can clear all 32 remaining colors in about eight minutes, so the "All colors unlocked" state (section 4) is now a routine destination rather than the edge case it was written as — the forget loop is what carries replayability from there.

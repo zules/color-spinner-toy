@@ -17,7 +17,7 @@ export interface UnlockWheelProps {
   readyAt: number;
   /** Wheel diameter in dp. */
   size: number;
-  /** Stamp the 3:00 cooldown — called the moment a spin starts (spec §9). */
+  /** Stamp the unlock cooldown — called the moment a spin starts (spec §9). */
   onSpinStart: () => void;
   /** The physics landed: unlock this color (fanfare/haptics live upstream). */
   onUnlock: (colorId: string) => void;
