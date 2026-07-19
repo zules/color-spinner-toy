@@ -38,7 +38,9 @@ CanvasKitInit({ locateFile: (f) => path.join(ckDir, f) }).then((CK) => {
     const halo = new CK.Paint();
     halo.setAntiAlias(true);
     halo.setColor(col("rgba(255,255,255,0.16)"));
-    halo.setMaskFilter(CK.MaskFilter.MakeBlur(CK.BlurStyle.Normal, R * 0.12, true));
+    halo.setMaskFilter(
+      CK.MaskFilter.MakeBlur(CK.BlurStyle.Normal, R * 0.12, true),
+    );
     canvas.drawCircle(cx, cy, R * 1.08, halo);
 
     const oval = CK.XYWHRect(cx - R, cy - R, R * 2, R * 2);
@@ -134,11 +136,16 @@ CanvasKitInit({ locateFile: (f) => path.join(ckDir, f) }).then((CK) => {
     console.log(`${file}: ${bytes.length} bytes`);
   }
 
-  // Main icon: full-bleed dark square. Adaptive foreground/monochrome: keep
-  // artwork inside the ~66% safe zone (max extent 1.05R must stay < 33% of
-  // the canvas from centre). Splash: transparent, sized by app.json.
-  render(1024, "#1d1d20", drawWheel, 330, "icon.png");
-  render(1024, null, drawWheel, 300, "android-icon-foreground.png");
-  render(1024, null, drawMono, 300, "android-icon-monochrome.png");
+  // Main icon: full-bleed square, no mask — fill it (artwork spans ~82%).
+  // Adaptive foreground/monochrome: the 108dp canvas shows at most a 72dp
+  // circle through the mask, so max extent 1.05R must stay <= 33.3% of the
+  // canvas from centre (341px at 1024). R=324 fills a circular mask exactly;
+  // prongs sit at 12/4/8 o'clock, the directions a squircle mask clips least.
+  // Splash: transparent, sized on screen by app.json imageWidth.
+  render(1024, "#f7bf26", drawWheel, 400, "icon.png");
+  render(1024, null, drawWheel, 324, "android-icon-foreground.png");
+  // Mono runs a hair smaller: its prong punch-out stroke is centred on the
+  // path, so the silhouette bulges half a stroke (R*0.03) past 1.05R.
+  render(1024, null, drawMono, 315, "android-icon-monochrome.png");
   render(512, null, drawWheel, 170, "splash-icon.png");
 });
